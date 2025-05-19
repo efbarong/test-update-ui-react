@@ -35,24 +35,21 @@ jobs:
         run: |
           VERSION=${{ steps.version-check.outputs.new_version }}
           BRANCH="chore/update-ui-react-$VERSION"
-
+          git checkout -b $BRANCH
           npm install @dynamic-framework/ui-react@$VERSION
-
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-
-          git checkout -b $BRANCH
           git add package.json package-lock.json
           git commit -m "chore: bump @dynamic-framework/ui-react to $VERSION"
           git push origin $BRANCH
 
-      - name: Generate GitHub App token
+      - name: Generate new github app token
         if: steps.version-check.outputs.should_bump == 'true'
         id: app-token
-        uses: tibdex/github-app-token@v1
+        uses: actions/create-github-app-token@v1
         with:
-          app_id: ${{ vars.PR_APP_ID }}
-          private_key: ${{ secrets.PR_APP_PK}}
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Create Pull Request
         if: steps.version-check.outputs.should_bump == 'true'
