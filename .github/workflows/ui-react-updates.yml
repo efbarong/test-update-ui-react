@@ -36,12 +36,17 @@ jobs:
           VERSION=${{ steps.version-check.outputs.new_version }}
           BRANCH="chore/update-ui-react-$VERSION"
           git checkout -b $BRANCH
+          echo "Cambió de rama"
           npm install @dynamic-framework/ui-react@$VERSION
+          echo "Instaló la nueva versión"
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add package.json package-lock.json
+          echo "Agregó los archivos."
           git commit -m "chore: bump @dynamic-framework/ui-react to $VERSION"
+          echo "Hizo commit"
           git push origin $BRANCH
+          echo "Publicó la nueva rama."
 
       - name: Generate new github app token
         if: steps.version-check.outputs.should_bump == 'true'
