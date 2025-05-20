@@ -1,0 +1,77 @@
+name: Bump ui-react version
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 13 * * 1'
+
+jobs:
+  bump-ui-react:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get current and latest version
+        id: version-check
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').dependencies['@dynamic-framework/ui-react'].replace(/^[^\d]*/, '')")
+          LATEST_VERSION=$(npm view @dynamic-framework/ui-react version)
+
+          echo "Current: $CURRENT_VERSION"
+          echo "Latest: $LATEST_VERSION"
+
+          IFS='.' read -r CURRENT_MAJOR CURRENT_MINOR CURRENT_PATCH <<< "$CURRENT_VERSION"
+          IFS='.' read -r LATEST_MAJOR LATEST_MINOR LATEST_PATCH <<< "$LATEST_VERSION"
+
+          if [ "$LATEST_MAJOR" -gt "$CURRENT_MAJOR" ]; then
+            echo "Major version bump detected. Skipping."
+            echo "should_bump=false" >> $GITHUB_OUTPUT
+          elif [ "$LATEST_VERSION" = "$CURRENT_VERSION" ]; then
+            echo "No new version."
+            echo "should_bump=false" >> $GITHUB_OUTPUT
+          else
+            echo "Minor or patch version bump detected."
+            echo "should_bump=true" >> $GITHUB_OUTPUT
+            echo "new_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if remote branch already exists
+        if: steps.version-check.outputs.should_bump == 'true'
+        id: branch-check
+        run: |
+          VERSION=${{ steps.version-check.outputs.new_version }}
+          BRANCH="chore/update-ui-react-$VERSION"
+
+          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null; then
+            echo "Branch $BRANCH already exists. Skipping."
+            echo "branch_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Branch $BRANCH does not exist. Proceeding."
+            echo "branch_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Bump and commit new version
+        if: steps.version-check.outputs.should_bump == 'true' && steps.branch-check.outputs.branch_exists == 'false'
+        run: |
+          VERSION=${{ steps.version-check.outputs.new_version }}
+          BRANCH="chore/update-ui-react-$VERSION"
+          git checkout -b $BRANCH
+          npm install @dynamic-framework/ui-react@$VERSION
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add package.json package-lock.json
+          git commit -m "chore: bump @dynamic-framework/ui-react to $VERSION"
+          git push origin $BRANCH
+
+      - name: Create Pull Request
+        if: steps.version-check.outputs.should_bump == 'true' && steps.branch-check.outputs.branch_exists == 'false'
+        run: |
+          VERSION=${{ steps.version-check.outputs.new_version }}
+          gh pr create \
+            --base master \
+            --head chore/update-ui-react-$VERSION \
+            --title "chore: bump @dynamic-framework/ui-react to $VERSION" \
+            --body "This PR updates @dynamic-framework/ui-react to version $VERSION" \
+        env:
+          GH_TOKEN: ${{ github.token }}
